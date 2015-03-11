@@ -69,12 +69,33 @@ cons_putc(int c) {
 ---
 lab1中printfmt函数用到了可变参，请参考写一个小的linux应用程序，完成实现定义和调用一个可变参数的函数。(spoc)
 ```
+include <stdio.h>
+#include <stdarg.h>
+stringadd(string fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    string result;
+    result = fmt;
+    string temp;
+    while ((temp = va_arg(ap, string)) != -1) {
+        result += temp;
+    }    
+    va_end(ap);
+    return result;
+}
+
+int main(){
+    stringadd(“Hello”, “ ”, “World”, “!”);
+    return 0;
+}
 ```
 如果让你来一个阶段一个阶段地从零开始完整实现lab1（不是现在的填空考方式），你的实现步骤是什么？（比如先实现一个可显示字符串的bootloader（描述一下要实现的关键步骤和需要注意的事项），再实现一个可加载ELF格式文件的bootloader（再描述一下进一步要实现的关键步骤和需要注意的事项）...） (spoc)
 ```
 ```
 如何能获取一个系统调用的调用次数信息？如何可以获取所有系统调用的调用次数信息？请简要说明可能的思路。(spoc)
 ```
+strace －c可以获取统计每种系统调用所执行的时间，调用次数，出错次数。
+系统调用入口处插入记录不同系统调用的代码。
 ```
 如何裁减lab1, 实现一个可显示字符串"THU LAB1"且依然能够正确加载ucore OS的bootloader？如果不能完成实现，请说明理由。
 ```
