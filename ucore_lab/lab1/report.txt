@@ -1,0 +1,180 @@
+操作系统课程实验
+实验1: 系统软件的启动过程
+
+计13 朱兆祺 2011011254
+
+练习1: 理解通过make生成执行文件的过程
+1.	ucore.img生成？
+mkdir -p bin
+* make upper file route bin
+echo + ld bin/kernel
+* output the string
+i386-elf-ld -m    elf_i386 -nostdlib -T tools/kernel.ld -o bin/kernel  obj/kern/init/init.o obj/kern/libs/readline.o obj/kern/libs/stdio.o obj/kern/debug/kdebug.o obj/kern/debug/kmonitor.o obj/kern/debug/panic.o obj/kern/driver/clock.o obj/kern/driver/console.o obj/kern/driver/intr.o obj/kern/driver/picirq.o obj/kern/trap/trap.o obj/kern/trap/trapentry.o obj/kern/trap/vectors.o obj/kern/mm/pmm.o  obj/libs/printfmt.o obj/libs/string.o
+* 'ld'把一定量的目标文件跟档案文件连接起来,并重定位它们的数据,连接符号引用.一般,在编译一个程序
+时,最后一步就是运行'ld'.
+i386-elf-objdump -S bin/kernel > obj/kernel.asm
+* objdump -S obj C语言与汇编语言同时显示, output to obj/kernel.asm
+i386-elf-objdump -t bin/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$/d' > obj/kernel.sym
+* objdump -t obj 输出目标文件的符号表()
+gcc -g -Wall -O2 obj/sign/tools/sign.o -o bin/sign
+* -g
+* 以操作系统的本地格式(stabs, COFF, XCOFF,或DWARF).产生调试信息. GDB能够使用这些调试信息. 在大多数使用stabs格式的系统上, `-g'选项启动只有GDB才使用的额外调试信息;这些信息使GDB 调试效果更好,但是有可能导致其他调试器崩溃,或拒绝读入程序.
+* -Wall
+* This enables all the warnings about constructions that some users consider questionable, and that are easy to avoid (or modify to prevent the warning), even in conjunction with macros. This also enables some language-specific warnings described in C++ Dialect Options and Objective-C and Objective-C++ Dialect Options.
+echo + ld bin/bootblock
+* print 
+i386-elf-ld -m    elf_i386 -nostdlib -N -e start -Ttext 0x7C00 obj/boot/bootasm.o obj/boot/bootmain.o -o obj/bootblock.o
+i386-elf-objdump -S obj/bootblock.o > obj/bootblock.asm
+i386-elf-objcopy -S -O binary obj/bootblock.o obj/bootblock.out
+* objcopy把一种目标文件中的内容复制到另一种类型的目标文件中
+* -S 表示移出所有的标志及重定位信息
+bin/sign obj/bootblock.out bin/bootblock
+dd if=/dev/zero of=bin/ucore.img count=10000
+dd if=bin/bootblock of=bin/ucore.img conv=notrunc
+dd if=bin/kernel of=bin/ucore.img seek=1 conv=notrunc
+
+２. 主引导记录是硬盘的第一个扇区，硬盘扇区从0开始编号，也就是0号扇区。这个扇区包含主引导记录和分区表。硬盘主引导扇区占据一个扇区,共512(200H)个字节，具体结构如下：
+1.硬盘主引导程序，位于该扇区的0－1BDH处； 2.硬盘分区表，位于1BEH－1FDH处，每个分区表占用16个字节，共4个分区表，16个字节各字节意义如下：
+0:自举标志,80H为可引导分区,00为不可引导分区;
+1～3:本分区在硬盘上的开始物理地址； 4:分区类型，其中1表示为12位FAT表的基本DOS分区；4为16位FAT表的基本DOS分区；5为扩展DOS 分区；6为大于32M的DOS分区；其它为非DOS分区。
+5～7:本分区的结束地址； 8～11:该分区之前的扇区数，即此分区第一扇区的绝对扇区号； 12～15:该分区占用的总扇区数。
+3．引导扇区的有效标志,位于1FEH－1FFH处,固定值为AA55H。
+
+练习2:
+qemu窗口：
+th181047:lab1 Christiana$ qemu -S -s -hda ucore.img -monitor stdio
+qemu: -hda ucore.img: could not open disk image ucore.img: Could not open 'ucore.img': No such file or directory
+th181047:lab1 Christiana$ cd bin
+th181047:bin Christiana$ qemu -S -s -hda ucore.img -monitor stdio
+QEMU 1.7.0 monitor - type 'help' for more information
+(qemu) xp/10i $pc
+0x00007c00:  cli    
+0x00007c01:  cld    
+0x00007c02:  xor    %ax,%ax
+0x00007c04:  mov    %ax,%ds
+0x00007c06:  mov    %ax,%es
+0x00007c08:  mov    %ax,%ss
+0x00007c0a:  in     $0x64,%al
+0x00007c0c:  test   $0x2,%al
+0x00007c0e:  jne    0x7c0a
+0x00007c10:  mov    $0xd1,%al
+(qemu)
+gdb窗口：
+th181047:lab1 Christiana$ gdb-apple ./bin/kernel
+GNU gdb 6.3.50.20050815-cvs (Sun Aug  4 20:00:14 UTC 2013)
+Copyright 2004 Free Software Foundation, Inc.
+GDB is free software, covered by the GNU General Public License, and you are
+welcome to change it and/or distribute copies of it under certain conditions.
+Type "show copying" to see the conditions.
+There is absolutely no warranty for GDB.  Type "show warranty" for details.
+This GDB was configured as "--host=i686-apple-darwin12.3.0 --target="..."/Users/Christiana/Documents/git/ucore_lab/labcodes/lab1/bin/kernel": not in executable format: ファイル形式が認識できません
+
+(gdb) target remote localhost:1234
+Remote debugging using localhost:1234
+[New thread 1]
+warning: Error 268435459 getting port names from mach_port_names
+[Switching to process 1 thread 0x0]
+0x0000fff0 in ?? ()
+Starting exhaustive search for kernel in memory, do 'set kaslr-memory-search 0' to disable this in the future.
+(gdb) target remote localhost:1234
+A program is being debugged already.  Kill it? (y or n) y
+Remote debugging using localhost:1234
+[New thread 1]
+warning: Error 268435459 getting port names from mach_port_names
+[Switching to process 1 thread 0x0]
+0x0000fff0 in ?? ()
+Starting exhaustive search for kernel in memory, do 'set kaslr-memory-search 0' to disable this in the future.
+(gdb) b * 0x7c00
+Breakpoint 1 at 0x7c00
+(gdb) continue
+Continuing.
+
+Breakpoint 1, 0x00007c00 in ?? ()
+(gdb) list
+No symbol table is loaded.  Use the "file" command.
+(gdb) xp
+Undefined command: "xp".  Try "help".
+(gdb) x/10i
+0x0:	push   %ebx
+0x1:	incl   (%eax)
+0x3:	lock push %ebx
+0x5:	incl   (%eax)
+0x7:	lock ret 
+0x9:	loop   0xb
+0xb:	lock push %ebx
+0xd:	incl   (%eax)
+0xf:	lock push %ebx
+0x11:	incl   (%eax)
+(gdb) 
+虽然苹果的OSX系统是基于UNIX系统，理论上安装了command line tools就可以直接用terminal执行make，gdb，lldb，但是我的电脑不知道是我在配置的时候出了什么问题，make和lldb都能用就是没有gdb指令。后来在刘啸宇同学的指点下发现了可以使用gdb的方式：gdb-apple。非常感谢刘啸宇同学的帮助。
+
+
+练习3: 分析bootloader进入保护模式的过程
+在实模式下，内存进入0x7c00。关掉实模式下的中断
+初始化主要的数据段寄存器
+激活A20地址线，建立全局描述符gdt，并用gdtdesc指针指向gdt
+进入保护模式
+初始化保护模式下的寄存器
+切换处理器到32位模式
+跳转到C语言bootmain函数
+参考资料：http://www.eoeandroid.com/blog-23065-2071.html非常感谢网上大神对这段代码的详细分析，加上lab1doc中的讲解让我对这个过程有了更好的理解。
+
+练习4:	分析bootloader加载ELF格式的OS的过程
+等待磁盘准备就绪
+读入一个扇区
+将内核中偏移量为 offset 的 count 个文件读入到虚拟地址 va 中
+检验 ELF 是否有效
+加载各个程序段
+
+练习 5: 实现函数调用堆栈跟踪函数
+th181047:lab1 Christiana$ make qemu
+(THU.CST) os is loading ...
+
+Special kernel symbols:
+  entry  0x00100000 (phys)
+  etext  0x0010349e (phys)
+  edata  0x0010ea18 (phys)
+  end    0x0010fd20 (phys)
+Kernel executable memory footprint: 64KB
+ebp:0x00007b28 eip:0x001009dc args:0x00010074 0x00010074 0x00007b58 0x00100099 
+    kern/debug/kdebug.c:323: print_stackframe+22
+ebp:0x00007b38 eip:0x00100cd5 args:0x00000000 0x00000000 0x00000000 0x00007ba8 
+    kern/debug/kmonitor.c:125: mon_backtrace+10
+ebp:0x00007b58 eip:0x00100099 args:0x00000000 0x00007b80 0xffff0000 0x00007b84 
+    kern/init/init.c:48: grade_backtrace2+33
+ebp:0x00007b78 eip:0x001000c2 args:0x00000000 0xffff0000 0x00007ba4 0x00000029 
+    kern/init/init.c:53: grade_backtrace1+38
+ebp:0x00007b98 eip:0x001000e0 args:0x00000000 0x00100000 0xffff0000 0x0000001d 
+    kern/init/init.c:58: grade_backtrace0+23
+ebp:0x00007bb8 eip:0x00100105 args:0x001034bc 0x001034a0 0x00001308 0x00000000 
+    kern/init/init.c:63: grade_backtrace+34
+ebp:0x00007be8 eip:0x00100057 args:0x00000000 0x00000000 0x00000000 0x00007c4f 
+    kern/init/init.c:28: kern_init+86
+ebp:0x00007bf8 eip:0x00007d62 args:0xc031fcfa 0xc08ed88e 0x64e4d08e 0xfa7502a8 
+<unknow>: -- 0x00007d61 –
+
+解释：
+ebp:0x00007bf8 eip:0x00007d62 args:0xc031fcfa 0xc08ed88e 0x64e4d08e 0xfa7502a8 
+<unknow>: -- 0x00007d61 –
+%eip 0x7d62 地址对应的是 bootmain.c 中的bootmain函数中代码。
+if (ELFHDR->e_magic != ELF_MAGIC) {
+        goto bad;
+}
+if (ELFHDR->e_magic != ELF_MAGIC) {
+    7d15:	81 3d 00 00 01 00 7f 	cmpl   $0x464c457f,0x10000
+    7d1c:	45 4c 46 
+    7d1f:	75 41                	jne    7d62 <bootmain+0x63>
+}
+对应goto bad。
+	
+%ebp 0x7bf8 地址对应的是 bootmain 函数的入口 0x7C00 之前，之间隔开了两个 32位的 0 。
+	
+由于 %ebp 之前已经是 bootmain 函数的代码段了，因此 args 中的数值均为指令，经过 gdb 反汇编可知是 readseg 函数中最后几条命令。
+
+练习 6: 完善中断初始化和处理
+1）	完善初始化函数 idt_init
+中断向量表一个表项占8个字节。从高到低表示为 Byte7 ~ Byte0：
+Byte7, Byte6 ：中断处理代码入口高 16 位。Byte1, Byte0 ：中断处理代码入口低 16 位。Byte3, Byte2 ：中断处理代码入口段选择.
+2）		将 __vectors 用 SETGATE 宏设置好，依次填入idt内，调用 lidt 函数进行设置指针。T_SYSCALL 需要将权限设置为用户态，这样才可以从用户态中产生中断
+3）		设置一个静态的 counter 变量，每次产生中断后加一，到100后，count清零，并执行print_ticks()。
+
